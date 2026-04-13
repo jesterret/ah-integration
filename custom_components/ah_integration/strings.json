@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Albert Heijn – Step 1",
+        "description": "Open the Albert Heijn login page in your browser:\n\n{auth_url}\n\nComplete the login, then copy the redirect URL (starts with `appie://`) or just the code from it and paste it below.",
+        "data": {
+          "auth_code": "Authorization code or redirect URL"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid authorization code. Please try again.",
+      "cannot_connect": "Unable to connect to Albert Heijn API.",
+      "unknown": "Unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "Albert Heijn is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_receipt_total": {
+        "name": "Last receipt total"
+      },
+      "last_receipt_discount": {
+        "name": "Last receipt discount"
+      },
+      "last_receipt_date": {
+        "name": "Last receipt date"
+      },
+      "receipt_count": {
+        "name": "Receipt count"
+      },
+      "bonus_savings": {
+        "name": "Total bonus savings"
+      },
+      "last_receipt_items": {
+        "name": "Last receipt items"
+      }
+    }
+  }
+}
