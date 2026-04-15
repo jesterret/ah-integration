@@ -1,7 +1,7 @@
 {
   "domain": "ah_integration",
   "name": "Albert Heijn",
-  "codeowners": [],
+  "codeowners": ["@jesterret"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/tijnschouten/appie",
