@@ -3,6 +3,7 @@ CONF_REFRESH_TOKEN = "refresh_token"
 CONF_ACCESS_TOKEN = "access_token"
 CONF_TOKEN_TYPE = "token_type"
 CONF_EXPIRES_AT = "expires_at"
+CONF_MEMBER_ID = "member_id"
 
 CONF_TRACKED_PRODUCTS = "tracked_products"
 CONF_RECEIPT_COUNT = "receipt_count"

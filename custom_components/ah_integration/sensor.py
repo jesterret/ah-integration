@@ -77,7 +77,6 @@ class AHMonthlySpentSensor(AHEntity, SensorEntity):
 
 class AHReceiptSensor(AHEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = CURRENCY_EURO
     _attr_suggested_display_precision = 2
     _attr_has_entity_name = True
@@ -119,7 +118,6 @@ class AHReceiptSensor(AHEntity, SensorEntity):
 
 class AHProductSensor(AHEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.MONETARY
-    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = CURRENCY_EURO
     _attr_suggested_display_precision = 2
     _attr_has_entity_name = True

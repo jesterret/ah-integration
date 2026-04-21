@@ -28,7 +28,19 @@ Copy the `custom_components/ah_integration` folder to your HA `config/custom_com
 
 1. Go to **Settings → Devices & Services → Add Integration** and search for **Albert Heijn**
 2. Open the login URL shown in your browser and complete the Albert Heijn login
-3. Copy the redirect URL (starts with `appie://`) or just the code from it and paste it into the form
+3. Copy the redirect URL (starts with `appie://`) or just the `code` from it and paste it into the form
+
+### Getting the auth code locally
+
+Albert Heijn currently redirects to the native `appie://` callback used by the mobile app, so Home Assistant cannot automatically complete the login handoff yet. For now, the integration expects you to paste either the full redirect URL or just the `code` value.
+
+If copying the redirect URL is awkward on your device, run this locally on a machine with a browser:
+
+```bash
+uvx --from python-appie appie-login
+```
+
+That helper will guide you through the login flow and return either the authorization code or the full redirect URL. You can paste either form into the Home Assistant config flow.
 
 Authentication tokens are stored in your HA config entry and auto-refreshed — you only need to log in once.
 

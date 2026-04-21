@@ -16,6 +16,7 @@ from .appie.models import Product
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_EXPIRES_AT,
+    CONF_MEMBER_ID,
     CONF_RECEIPT_COUNT,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_TYPE,
@@ -88,6 +89,7 @@ class _HAAuthClient:
             refresh_token=entry.data[CONF_REFRESH_TOKEN],
             token_type=entry.data.get(CONF_TOKEN_TYPE, "Bearer"),
             expires_in=7200,
+            member_id=entry.data.get(CONF_MEMBER_ID),
             expires_at=expires_at,
         )
 
@@ -122,6 +124,7 @@ class _HAAuthClient:
                 CONF_REFRESH_TOKEN: token.refresh_token,
                 CONF_TOKEN_TYPE: token.token_type,
                 CONF_EXPIRES_AT: expires_at.isoformat(),
+                CONF_MEMBER_ID: token.member_id or self._entry.data.get(CONF_MEMBER_ID),
             },
         )
         return token

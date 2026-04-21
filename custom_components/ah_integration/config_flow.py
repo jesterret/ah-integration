@@ -22,6 +22,7 @@ from .const import (
     AH_AUTHORIZE_URL,
     CONF_ACCESS_TOKEN,
     CONF_EXPIRES_AT,
+    CONF_MEMBER_ID,
     CONF_RECEIPT_COUNT,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_TYPE,
@@ -49,27 +50,29 @@ class AHConfigFlow(ConfigFlow, domain=DOMAIN):
         return AHOptionsFlow()
 
     async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
-        await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured()
-
         errors: dict[str, str] = {}
 
         if user_input is not None:
             raw = user_input["auth_code"].strip()
             try:
                 token = await self._exchange_code(raw)
-            except RuntimeError:
+            except (RuntimeError, ValueError):
                 errors["base"] = "invalid_auth"
             except Exception:
                 errors["base"] = "cannot_connect"
             else:
+                member_id = token.get(CONF_MEMBER_ID)
+                if member_id:
+                    await self.async_set_unique_id(str(member_id))
+                    self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title="Albert Heijn",
+                    title=(f"Albert Heijn ({member_id})" if member_id else "Albert Heijn"),
                     data={
                         CONF_ACCESS_TOKEN: token["access_token"],
                         CONF_REFRESH_TOKEN: token["refresh_token"],
                         CONF_TOKEN_TYPE: token.get("token_type", "Bearer"),
                         CONF_EXPIRES_AT: token.get("expires_at"),
+                        CONF_MEMBER_ID: member_id,
                     },
                 )
 
@@ -96,6 +99,7 @@ class AHConfigFlow(ConfigFlow, domain=DOMAIN):
             "refresh_token": token.refresh_token,
             "token_type": token.token_type,
             "expires_at": expires_at,
+            "member_id": token.member_id,
         }
 
 

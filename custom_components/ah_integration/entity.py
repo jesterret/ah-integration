@@ -13,8 +13,8 @@ class AHEntity(CoordinatorEntity[AHCoordinator]):
     def __init__(self, coordinator: AHCoordinator) -> None:
         super().__init__(coordinator)
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, DOMAIN)},
-            name="Albert Heijn",
+            identifiers={(DOMAIN, coordinator.config_entry.entry_id)},
+            name=coordinator.config_entry.title or "Albert Heijn",
             manufacturer="Albert Heijn",
             entry_type=DeviceEntryType.SERVICE,
         )

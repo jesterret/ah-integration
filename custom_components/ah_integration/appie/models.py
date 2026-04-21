@@ -14,6 +14,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     expires_in: int
     token_type: str = "Bearer"
+    member_id: str | None = None
 
 
 class StoredToken(BaseModel):
@@ -23,6 +24,7 @@ class StoredToken(BaseModel):
     refresh_token: str
     expires_in: int
     token_type: str = "Bearer"
+    member_id: str | None = None
     expires_at: datetime
 
     model_config = ConfigDict(extra="ignore")
@@ -39,6 +41,7 @@ class StoredToken(BaseModel):
             refresh_token=self.refresh_token,
             expires_in=self.expires_in,
             token_type=self.token_type,
+            member_id=self.member_id,
         )
 
 
