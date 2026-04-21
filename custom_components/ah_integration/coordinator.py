@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import logging
+import math
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -10,43 +12,53 @@ from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import httpx
 
+from .appie.models import Product
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_EXPIRES_AT,
+    CONF_RECEIPT_COUNT,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_TYPE,
+    CONF_TRACKED_PRODUCTS,
+    DEFAULT_RECEIPT_COUNT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-_AH_BASE = "https://api.ah.nl"
-_AH_RECEIPTS_URL = f"{_AH_BASE}/mobile-services/v1/receipts"
-_AH_CLIENT_ID = "appie-ios"
-_AH_CLIENT_VERSION = "9.28"
-_AH_USER_AGENT = "Appie/9.28 (iPhone17,3; iPhone; CPU OS 26_1 like Mac OS X)"
+if TYPE_CHECKING:
+    from .appie.client import AHClient
+    from .appie.models import Receipt, ReceiptProduct
+
+
+RECOVERABLE_FETCH_ERRORS = (
+    httpx.HTTPError,
+    KeyError,
+    LookupError,
+    TypeError,
+    ValueError,
+    RuntimeError,
+)
+
+
+@dataclass
+class AHReceiptData:
+    index: int
+    receipt_id: str | None
+    date: datetime | None
+    total: float | None
+    discount: float | None
+    items: dict[str, float] | None
 
 
 @dataclass
 class AHData:
-    last_receipt_total: float | None
-    last_receipt_date: datetime | None
+    receipts: list[AHReceiptData]
     receipt_count: int
-    last_receipt_discount: float | None
-    bonus_savings: float | None
-    last_receipt_items: str | None
-
-
-def _default_headers() -> dict[str, str]:
-    return {
-        "User-Agent": _AH_USER_AGENT,
-        "x-client-name": _AH_CLIENT_ID,
-        "x-client-version": _AH_CLIENT_VERSION,
-        "x-application": "AHWEBSHOP",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
+    monthly_spent: float
+    tracked_product_prices: dict[int, float | None]
+    tracked_products: dict[int, Product]
 
 
 class _HAAuthClient:
@@ -56,7 +68,7 @@ class _HAAuthClient:
         hass: HomeAssistant,
         entry: ConfigEntry,
     ) -> None:
-        from appie.models import StoredToken, TokenResponse
+        from .appie.models import StoredToken, TokenResponse
 
         self._hass = hass
         self._entry = entry
@@ -89,10 +101,12 @@ class _HAAuthClient:
         return self._stored_token.to_token_response()
 
     async def _do_refresh(self, refresh_token: str):
+        from .appie.auth import BASE_URL, DEFAULT_CLIENT_ID, _DEFAULT_HEADERS
+
         resp = await self._http.post(
-            f"{_AH_BASE}/mobile-auth/v1/auth/token/refresh",
-            headers=_default_headers(),
-            json={"clientId": _AH_CLIENT_ID, "refreshToken": refresh_token},
+            f"{BASE_URL}/mobile-auth/v1/auth/token/refresh",
+            headers=_DEFAULT_HEADERS,
+            json={"clientId": DEFAULT_CLIENT_ID, "refreshToken": refresh_token},
         )
         resp.raise_for_status()
         token = self._TokenResponse.model_validate(resp.json())
@@ -127,76 +141,195 @@ class AHCoordinator(DataUpdateCoordinator[AHData]):
         )
         self._entry = entry
         self._auth: _HAAuthClient | None = None
-        self._appie_client = None
+        self._appie_client: AHClient | None = None
 
     async def _async_setup(self) -> None:
-        from appie.client import AHClient
+        await self._async_ensure_client()
+
+    async def _async_ensure_client(self) -> None:
+        if self._auth is not None and self._appie_client is not None:
+            return
+
+        from .appie.client import AHClient
 
         http = get_async_client(self.hass)
         self._auth = _HAAuthClient(http, self.hass, self._entry)
         self._appie_client = AHClient(http_client=http, auth_client=self._auth)
 
     async def _async_update_data(self) -> AHData:
-        if self._auth is None or self._appie_client is None:
-            raise UpdateFailed("Client not initialized")
-
-        http = get_async_client(self.hass)
-        try:
-            receipts = await self._appie_client.receipts.list_all(limit=50)
-
-            token = await self._auth.ensure_valid_token()
-            bearer = f"{token.token_type} {token.access_token}"
-            resp = await http.get(
-                _AH_RECEIPTS_URL,
-                headers={**_default_headers(), "Authorization": bearer},
-            )
-            resp.raise_for_status()
-            raw = resp.json()
-        except Exception as err:
-            raise UpdateFailed(f"Error fetching receipts: {err}") from err
-
-        raw_items: list[dict] = (
-            raw if isinstance(raw, list) else raw.get("receipts", [])
-        )
-
-        if not receipts:
-            return AHData(
-                last_receipt_total=None,
-                last_receipt_date=None,
-                receipt_count=0,
-                last_receipt_discount=None,
-                bonus_savings=None,
-                last_receipt_items=None,
-            )
-
-        sorted_receipts = sorted(receipts, key=lambda r: r.datetime, reverse=True)
-        latest = sorted_receipts[0]
-
-        try:
-            detailed = await self._appie_client.receipts.get_pos_receipt(latest.id)
-            items_text = (
-                "\n".join(
-                    f"{p.quantity}x {p.name} €{p.total_price:.2f}"
-                    for p in detailed.products
-                )
-                or None
-            )
-        except Exception:
-            items_text = None
-
-        discount_by_id: dict[str, float] = {
-            r.get("id", ""): float(r.get("totalDiscount", 0) or 0) for r in raw_items
-        }
-        total_discount = sum(discount_by_id.values())
-        last_discount = discount_by_id.get(str(latest.id), 0.0)
+        await self._async_ensure_client()
+        receipts = await self._async_fetch_receipts()
+        receipt_count, monthly_spent = self._calculate_monthly_summary(receipts)
+        receipt_data = await self._async_build_receipt_data(receipts)
+        tracked_prices, tracked_products = await self._async_load_tracked_products()
 
         return AHData(
-            last_receipt_total=latest.total,
-            last_receipt_date=latest.datetime,
-            receipt_count=len(receipts),
-            last_receipt_discount=last_discount if last_discount else None,
-            bonus_savings=total_discount if total_discount else None,
-            last_receipt_items=items_text,
+            receipts=receipt_data,
+            receipt_count=receipt_count,
+            monthly_spent=monthly_spent,
+            tracked_product_prices=tracked_prices,
+            tracked_products=tracked_products,
+        )
+
+    def _require_client(self) -> AHClient:
+        if self._auth is None or self._appie_client is None:
+            raise UpdateFailed("Client not initialized")
+        return self._appie_client
+
+    async def _async_fetch_receipts(self) -> list[Receipt]:
+        try:
+            return await self._require_client().receipts.list_all(limit=50)
+        except RECOVERABLE_FETCH_ERRORS as err:
+            raise UpdateFailed(f"Error fetching receipts: {err}") from err
+
+    def _calculate_monthly_summary(self, receipts: list[Receipt]) -> tuple[int, float]:
+        now = datetime.now(UTC)
+        monthly_receipts = [
+            receipt for receipt in receipts if self._is_receipt_in_current_month(receipt, now)
+        ]
+        monthly_spent = round(
+            sum(receipt.total for receipt in monthly_receipts if receipt.total is not None),
+            2,
+        )
+        return len(monthly_receipts), monthly_spent
+
+    def _is_receipt_in_current_month(self, receipt: Receipt, now: datetime) -> bool:
+        return receipt.datetime.year == now.year and receipt.datetime.month == now.month
+
+    async def _async_build_receipt_data(self, receipts: list[Receipt]) -> list[AHReceiptData]:
+        receipt_limit = int(self._entry.options.get(CONF_RECEIPT_COUNT, DEFAULT_RECEIPT_COUNT))
+        receipt_data = [
+            await self._async_build_receipt_entry(index, receipt)
+            for index, receipt in enumerate(receipts[:receipt_limit])
+        ]
+        return receipt_data or [self._empty_receipt_data()]
+
+    async def _async_build_receipt_entry(
+        self, index: int, receipt: Receipt
+    ) -> AHReceiptData:
+        items, discount = await self._async_fetch_receipt_details(receipt)
+        return AHReceiptData(
+            index=index,
+            receipt_id=receipt.id,
+            date=receipt.datetime,
+            total=receipt.total,
+            discount=discount,
+            items=items,
+        )
+
+    async def _async_fetch_receipt_details(
+        self, receipt: Receipt
+    ) -> tuple[dict[str, float] | None, float | None]:
+        try:
+            detailed = await self._require_client().receipts.get_pos_receipt(receipt.id)
+        except RECOVERABLE_FETCH_ERRORS as err:
+            _LOGGER.warning(
+                "Failed to fetch receipt details for %s; omitting receipt items",
+                receipt.id,
+                exc_info=True,
+            )
+            return None, None
+
+        try:
+            return (
+                self._build_receipt_items(detailed.products),
+                self._calculate_receipt_discount(detailed.products),
+            )
+        except (TypeError, ValueError) as err:
+            _LOGGER.warning(
+                "Failed to format receipt details for %s; omitting receipt items",
+                receipt.id,
+                exc_info=True,
+            )
+            return None, None
+
+    def _build_receipt_items(
+        self, products: list[ReceiptProduct]
+    ) -> dict[str, float] | None:
+        items = {
+            f"{self._format_receipt_quantity(product.quantity)}x {product.name}": product.total_price
+            for product in products
+        }
+        return items or None
+
+    def _format_receipt_quantity(self, quantity: float) -> str:
+        numeric_quantity = float(quantity)
+        if not math.isfinite(numeric_quantity):
+            raise ValueError("Receipt quantity must be finite")
+        if numeric_quantity.is_integer():
+            return str(int(numeric_quantity))
+        return f"{numeric_quantity:g}"
+
+    def _calculate_receipt_discount(
+        self, products: list[ReceiptProduct]
+    ) -> float | None:
+        discount = round(
+            sum(
+                max(0.0, product.price_per_unit * product.quantity - product.total_price)
+                for product in products
+                if product.price_per_unit is not None and product.total_price is not None
+            ),
+            2,
+        )
+        return discount or None
+
+    async def _async_load_tracked_products(
+        self,
+    ) -> tuple[dict[int, float | None], dict[int, Product]]:
+        tracked_prices: dict[int, float | None] = {}
+        tracked_products: dict[int, Product] = {}
+
+        for product_meta in self._entry.options.get(CONF_TRACKED_PRODUCTS, []):
+            product_id = self._get_tracked_product_id(product_meta)
+            if product_id is None:
+                continue
+
+            try:
+                product = await self._require_client().products.get(product_id)
+            except RECOVERABLE_FETCH_ERRORS as err:
+                _LOGGER.warning(
+                    "Failed to fetch tracked product %s; leaving state unavailable",
+                    product_id,
+                    exc_info=True,
+                )
+                tracked_prices[product_id] = None
+                continue
+
+            raw_price = (
+                product.discount_price
+                if product.discount_price is not None
+                else product.price
+            )
+            tracked_prices[product_id] = round(raw_price, 2) if raw_price is not None else None
+            tracked_products[product_id] = product
+
+        return tracked_prices, tracked_products
+
+    def _get_tracked_product_id(self, product_meta: object) -> int | None:
+        if not isinstance(product_meta, dict):
+            _LOGGER.warning(
+                "Skipping invalid tracked product config entry; expected dict but got %s",
+                type(product_meta).__name__,
+            )
+            return None
+
+        try:
+            return int(product_meta["id"])
+        except (KeyError, TypeError, ValueError):
+            _LOGGER.warning(
+                "Skipping tracked product config without a valid integer id; keys=%s",
+                sorted(product_meta),
+            )
+            return None
+
+    def _empty_receipt_data(self) -> AHReceiptData:
+        return AHReceiptData(
+            index=0,
+            receipt_id=None,
+            date=None,
+            total=None,
+            discount=None,
+            items=None,
         )
 
     async def async_close(self) -> None:

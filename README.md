@@ -10,13 +10,13 @@ A custom Home Assistant integration for Albert Heijn (Dutch supermarket), provid
 - **Last receipt discount** — Discount applied on the last receipt
 - **Last receipt date** — Timestamp of the most recent receipt
 - **Last receipt items** — Full item list of the most recent receipt as text
-- **Receipt count** — Total number of receipts in your account
+- **Receipt count** — Number of receipts this month
 - **Total bonus savings** — Cumulative bonus/discount savings across all receipts
 
 ## Installation via HACS
 
 1. In HACS, go to **Integrations** → click the three-dot menu → **Custom repositories**
-2. Add this repository URL and select category **Integration**
+2. Add `https://github.com/jesterret/ah-integration` and select category **Integration**
 3. Install **Albert Heijn** from HACS
 4. Restart Home Assistant
 
@@ -31,6 +31,10 @@ Copy the `custom_components/ah_integration` folder to your HA `config/custom_com
 3. Copy the redirect URL (starts with `appie://`) or just the code from it and paste it into the form
 
 Authentication tokens are stored in your HA config entry and auto-refreshed — you only need to log in once.
+
+## Issues
+
+Report bugs or request features at `https://github.com/jesterret/ah-integration/issues`.
 
 ## Requirements
 

@@ -4,6 +4,10 @@ CONF_ACCESS_TOKEN = "access_token"
 CONF_TOKEN_TYPE = "token_type"
 CONF_EXPIRES_AT = "expires_at"
 
+CONF_TRACKED_PRODUCTS = "tracked_products"
+CONF_RECEIPT_COUNT = "receipt_count"
+DEFAULT_RECEIPT_COUNT = 1
+
 DEFAULT_SCAN_INTERVAL = 30
 
 AH_AUTHORIZE_URL = (

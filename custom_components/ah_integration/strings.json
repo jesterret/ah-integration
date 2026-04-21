@@ -18,25 +18,58 @@
       "already_configured": "Albert Heijn is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage tracked products",
+        "data": {
+          "action": "What would you like to do?"
+        }
+      },
+      "search": {
+        "title": "Add a product",
+        "description": "Search for a product by name to add a price sensor.",
+        "data": {
+          "search_query": "Product name"
+        }
+      },
+      "pick": {
+        "title": "Select a product",
+        "description": "Choose the product you want to track.",
+        "data": {
+          "product": "Product"
+        }
+      },
+      "remove": {
+        "title": "Remove tracked products",
+        "description": "Select the products to stop tracking.",
+        "data": {
+          "products": "Products to remove"
+        }
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "Configure general integration settings.",
+        "data": {
+          "receipt_count": "Number of receipts to track (1–10)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Albert Heijn API.",
+      "no_results": "No products found. Try a different search term."
+    }
+  },
   "entity": {
     "sensor": {
-      "last_receipt_total": {
-        "name": "Last receipt total"
-      },
-      "last_receipt_discount": {
-        "name": "Last receipt discount"
-      },
-      "last_receipt_date": {
-        "name": "Last receipt date"
-      },
       "receipt_count": {
-        "name": "Receipt count"
+        "name": "Receipts this month"
       },
-      "bonus_savings": {
-        "name": "Total bonus savings"
+      "monthly_spent": {
+        "name": "Spent this month"
       },
-      "last_receipt_items": {
-        "name": "Last receipt items"
+      "receipt": {
+        "name": "Last receipt"
       }
     }
   }
