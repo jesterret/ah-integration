@@ -21,12 +21,14 @@ from homeassistant.helpers.selector import (
 from .const import (
     AH_AUTHORIZE_URL,
     CONF_ACCESS_TOKEN,
+    CONF_ENABLE_MONTHLY_BREAKDOWN,
     CONF_EXPIRES_AT,
     CONF_MEMBER_ID,
     CONF_RECEIPT_COUNT,
     CONF_REFRESH_TOKEN,
     CONF_TOKEN_TYPE,
     CONF_TRACKED_PRODUCTS,
+    DEFAULT_ENABLE_MONTHLY_BREAKDOWN,
     DEFAULT_RECEIPT_COUNT,
     DOMAIN,
 )
@@ -239,16 +241,33 @@ class AHOptionsFlow(OptionsFlowWithReload):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            return self._save({CONF_RECEIPT_COUNT: int(user_input[CONF_RECEIPT_COUNT])})
+            return self._save(
+                {
+                    CONF_RECEIPT_COUNT: int(user_input[CONF_RECEIPT_COUNT]),
+                    CONF_ENABLE_MONTHLY_BREAKDOWN: bool(
+                        user_input[CONF_ENABLE_MONTHLY_BREAKDOWN]
+                    ),
+                }
+            )
 
         current_count = int(self.config_entry.options.get(CONF_RECEIPT_COUNT, DEFAULT_RECEIPT_COUNT))
+        current_breakdown_setting = bool(
+            self.config_entry.options.get(
+                CONF_ENABLE_MONTHLY_BREAKDOWN,
+                DEFAULT_ENABLE_MONTHLY_BREAKDOWN,
+            )
+        )
         return self.async_show_form(
             step_id="settings",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_RECEIPT_COUNT, default=current_count): vol.All(
                         int, vol.Range(min=1, max=10)
-                    )
+                    ),
+                    vol.Required(
+                        CONF_ENABLE_MONTHLY_BREAKDOWN,
+                        default=current_breakdown_setting,
+                    ): bool,
                 }
             ),
         )

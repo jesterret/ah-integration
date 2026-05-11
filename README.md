@@ -2,16 +2,15 @@
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 
-A custom Home Assistant integration for Albert Heijn (Dutch supermarket), providing receipt and savings data as sensors.
+A custom Home Assistant integration for Albert Heijn (Dutch supermarket), providing receipt and spend data as sensors.
 
 ## Features
 
-- **Last receipt total** — Amount of your most recent purchase
-- **Last receipt discount** — Discount applied on the last receipt
-- **Last receipt date** — Timestamp of the most recent receipt
-- **Last receipt items** — Full item list of the most recent receipt as text
+- **Receipt sensors** — Your most recent receipts, including total, purchase date, calculated discount, and item list as attributes
 - **Receipt count** — Number of receipts this month
-- **Total bonus savings** — Cumulative bonus/discount savings across all receipts
+- **Spent this month** — Total amount spent this month
+- **Spent last month** — Total amount spent last month
+- **Monthly item breakdown** — Optional per-item quantity and spend attributes on the monthly spend sensors (disabled by default)
 
 ## Installation via HACS
 
@@ -43,6 +42,10 @@ uvx --from python-appie appie-login
 That helper will guide you through the login flow and return either the authorization code or the full redirect URL. You can paste either form into the Home Assistant config flow.
 
 Authentication tokens are stored in your HA config entry and auto-refreshed — you only need to log in once.
+
+### Privacy-sensitive monthly breakdowns
+
+If you want per-item monthly spend and quantity breakdowns, enable **Expose monthly item breakdown attributes** in the integration options. This is off by default because the extra attributes reveal detailed shopping history to anything in Home Assistant that can read entity state.
 
 ## Issues
 

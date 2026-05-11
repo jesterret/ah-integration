@@ -12,11 +12,51 @@ from homeassistant.const import CURRENCY_EURO
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_RECEIPT_COUNT, CONF_TRACKED_PRODUCTS, DEFAULT_RECEIPT_COUNT
-from .coordinator import AHCoordinator, AHReceiptData
+from .const import (
+    CONF_ENABLE_MONTHLY_BREAKDOWN,
+    CONF_RECEIPT_COUNT,
+    CONF_TRACKED_PRODUCTS,
+    DEFAULT_ENABLE_MONTHLY_BREAKDOWN,
+    DEFAULT_RECEIPT_COUNT,
+)
+from .coordinator import AHCoordinator, AHMonthlyBreakdownItem, AHReceiptData
 from .entity import AHEntity
 
 type AHConfigEntry = ConfigEntry[AHCoordinator]
+
+BREAKDOWN_UNRECORDED_ATTRIBUTES = frozenset(
+    {
+        "item_breakdown",
+        "item_breakdown_complete",
+        "item_breakdown_missing_receipts",
+    }
+)
+
+
+def serialize_breakdown(
+    items: list[AHMonthlyBreakdownItem],
+) -> dict[str, dict[str, float | int | str]] | None:
+    if not items:
+        return None
+    return {
+        str(item.product_id): {
+            "name": item.name,
+            "quantity": int(item.quantity)
+            if float(item.quantity).is_integer()
+            else item.quantity,
+            "spent": item.spent,
+        }
+        for item in items
+    }
+
+
+def monthly_breakdown_enabled(coordinator: AHCoordinator) -> bool:
+    return bool(
+        coordinator.config_entry.options.get(
+            CONF_ENABLE_MONTHLY_BREAKDOWN,
+            DEFAULT_ENABLE_MONTHLY_BREAKDOWN,
+        )
+    )
 
 
 async def async_setup_entry(
@@ -29,6 +69,7 @@ async def async_setup_entry(
     entities: list[AHEntity] = [
         AHReceiptCountSensor(coordinator),
         AHMonthlySpentSensor(coordinator),
+        AHPreviousMonthSpentSensor(coordinator),
     ]
     entities += [AHReceiptSensor(coordinator, entry, idx) for idx in range(n)]
     entities += [
@@ -63,6 +104,7 @@ class AHMonthlySpentSensor(AHEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_name = "Spent this month"
     _attr_translation_key = "monthly_spent"
+    _unrecorded_attributes = BREAKDOWN_UNRECORDED_ATTRIBUTES
 
     def __init__(self, coordinator: AHCoordinator) -> None:
         super().__init__(coordinator)
@@ -74,12 +116,68 @@ class AHMonthlySpentSensor(AHEntity, SensorEntity):
             return None
         return self.coordinator.data.monthly_spent
 
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        if self.coordinator.data is None:
+            return None
+        if not monthly_breakdown_enabled(self.coordinator):
+            return None
+        breakdown = serialize_breakdown(self.coordinator.data.current_month_breakdown)
+        missing_receipts = self.coordinator.data.current_month_breakdown_missing_receipts
+        attrs: dict[str, object] = {}
+        if breakdown is not None:
+            attrs["item_breakdown"] = breakdown
+        if breakdown is not None or missing_receipts > 0:
+            attrs["item_breakdown_complete"] = missing_receipts == 0
+        if missing_receipts > 0:
+            attrs["item_breakdown_missing_receipts"] = missing_receipts
+        return attrs or None
+
+
+class AHPreviousMonthSpentSensor(AHEntity, SensorEntity):
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_native_unit_of_measurement = CURRENCY_EURO
+    _attr_suggested_display_precision = 2
+    _attr_has_entity_name = True
+    _attr_name = "Spent last month"
+    _attr_translation_key = "previous_month_spent"
+    _unrecorded_attributes = BREAKDOWN_UNRECORDED_ATTRIBUTES
+
+    def __init__(self, coordinator: AHCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_previous_month_spent"
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.previous_month_spent
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        if self.coordinator.data is None:
+            return None
+        if not monthly_breakdown_enabled(self.coordinator):
+            return None
+        breakdown = serialize_breakdown(self.coordinator.data.previous_month_breakdown)
+        missing_receipts = self.coordinator.data.previous_month_breakdown_missing_receipts
+        attrs: dict[str, object] = {}
+        if breakdown is not None:
+            attrs["item_breakdown"] = breakdown
+        if breakdown is not None or missing_receipts > 0:
+            attrs["item_breakdown_complete"] = missing_receipts == 0
+        if missing_receipts > 0:
+            attrs["item_breakdown_missing_receipts"] = missing_receipts
+        return attrs or None
+
 
 class AHReceiptSensor(AHEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = CURRENCY_EURO
     _attr_suggested_display_precision = 2
     _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset({"items"})
 
     def __init__(self, coordinator: AHCoordinator, entry: AHConfigEntry, index: int) -> None:
         super().__init__(coordinator)

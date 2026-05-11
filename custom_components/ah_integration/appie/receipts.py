@@ -50,22 +50,27 @@ class ReceiptsAPI:
     def __init__(self, client: GraphQLClient) -> None:
         self._client = client
 
-    async def list_pos_receipts(self, limit: int = 50) -> list[Receipt]:
+    async def list_pos_receipts(self, limit: int = 50, offset: int = 0) -> list[Receipt]:
         """Return POS receipt summaries without line items."""
-        data = await self._client.graphql(POS_RECEIPTS_QUERY, {"offset": 0, "limit": limit})
+        data = await self._client.graphql(
+            POS_RECEIPTS_QUERY, {"offset": offset, "limit": limit}
+        )
         receipts = (data.get("posReceiptsPage") or {}).get("posReceipts", [])
         return [self._map_receipt_summary(item) for item in receipts]
 
-    async def get_pos_receipt(self, receipt_id: str) -> Receipt:
+    async def get_pos_receipt(
+        self, receipt_id: str, summary: Receipt | None = None
+    ) -> Receipt:
         """Return a single POS receipt including product line items."""
         data = await self._client.graphql(POS_RECEIPT_DETAILS_QUERY, {"id": receipt_id})
         receipt = data["posReceiptDetails"]
-        summary = await self._get_receipt_summary(receipt_id)
+        if summary is None:
+            summary = await self._get_receipt_summary(receipt_id)
         return self._map_receipt_detail(receipt, summary=summary)
 
-    async def list_all(self, limit: int = 50) -> list[Receipt]:
+    async def list_all(self, limit: int = 50, offset: int = 0) -> list[Receipt]:
         """Return receipt summaries sorted by datetime descending."""
-        receipts = await self.list_pos_receipts(limit=limit)
+        receipts = await self.list_pos_receipts(limit=limit, offset=offset)
         return sorted(receipts, key=lambda receipt: receipt.datetime, reverse=True)
 
     @staticmethod

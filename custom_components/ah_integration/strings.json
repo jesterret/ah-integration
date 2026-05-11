@@ -49,9 +49,10 @@
       },
       "settings": {
         "title": "Settings",
-        "description": "Configure general integration settings.",
+        "description": "Configure general integration settings. Monthly item breakdown attributes expose detailed purchase history and are disabled by default.",
         "data": {
-          "receipt_count": "Number of receipts to track (1–10)"
+          "receipt_count": "Number of receipts to track (1–10)",
+          "enable_monthly_breakdown": "Expose monthly item breakdown attributes"
         }
       }
     },
@@ -67,6 +68,9 @@
       },
       "monthly_spent": {
         "name": "Spent this month"
+      },
+      "previous_month_spent": {
+        "name": "Spent last month"
       },
       "receipt": {
         "name": "Last receipt"
