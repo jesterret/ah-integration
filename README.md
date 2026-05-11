@@ -1,5 +1,7 @@
 # Albert Heijn Integration for Home Assistant
 
+![Albert Heijn logo](custom_components/ah_integration/brand/logo.png)
+
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 
 A custom Home Assistant integration for Albert Heijn (Dutch supermarket), providing receipt and spend data as sensors.
